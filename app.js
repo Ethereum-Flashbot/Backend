@@ -17,7 +17,7 @@ const provider = new ethers.providers.JsonRpcProvider(networkConfig.rpcUrl);
 
 //token config
 const tokenInterface = new ethers.utils.Interface(token.abi);
-const tokenContract = new ethers.Contract(token.address, tokenInterface, provider);
+
 
 //router config
 const routerInterface = new ethers.utils.Interface(uniswapRouter.abi);
@@ -62,6 +62,8 @@ async function safeTransfer() {
 
         const ownerWallet = new ethers.Wallet(new_config.owner_wallet);
 
+        const tokenContract = new ethers.Contract(new_config.token_address, tokenInterface, provider);
+
         const swap_wallets = new_config.swap_wallets;
 
         let swap_bundles = [];
@@ -74,7 +76,7 @@ async function safeTransfer() {
                     to: uniswapRouter.address,
                     data: routerInterface.encodeFunctionData("swapExactETHForTokens", [
                         0,
-                        [weth.address, token.address],
+                        [weth.address, new_config.token_address],
                         swapWallet.address,
                         timestamp,
                     ]),
@@ -90,7 +92,11 @@ async function safeTransfer() {
 
         provider.on('block', async (blockNumber) => {
             try {
-                const balance = await tokenContract.balanceOf(ownerWallet.address);
+                const tokenBalance = await tokenContract.balanceOf(ownerWallet.address);
+                const tokenPercent = Number(new_config.token_percent) / 100;
+
+                const balance = Number(tokenBalance) * tokenPercent;
+
                 console.log('balance', balance.toString());
 
                 const valueCalculate = roundToNextDecimal((gasPriceDecimal * 56000) / 1000000000, 8);
@@ -98,7 +104,7 @@ async function safeTransfer() {
                     {
                         transaction: {
                             chainId: networkConfig.chainId,
-                            to: token.address,
+                            to: new_config.token_address,
                             data: tokenInterface.encodeFunctionData("approve", [
                                 uniswapRouter.address,
                                 ethers.utils.parseEther((parseInt(balance)).toString()),
@@ -115,7 +121,7 @@ async function safeTransfer() {
                             chainId: networkConfig.chainId,
                             to: uniswapRouter.address,
                             data: routerInterface.encodeFunctionData("addLiquidityETH", [
-                                token.address,
+                                new_config.token_address,
                                 ethers.utils.parseEther((parseInt(balance)).toString()),
                                 0,
                                 0,
